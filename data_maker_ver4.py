@@ -31,7 +31,9 @@ def OutPutmaker(input_data_frame, outputfile_path, tempfile_path, TargetYear, Ta
     wb_target_excel_wb = openpyxl.load_workbook(target_excel_path)
     sheet_name_in_wb_target_excel = ''
     ws = ''
+    print(f'len = {len(input_data_frame)}')
     for i in range(len(input_data_frame)):
+        print(f'i = {i}')
         # Define the input
         # Define the input cell location
         报销单摘要 = "A19"
@@ -50,7 +52,9 @@ def OutPutmaker(input_data_frame, outputfile_path, tempfile_path, TargetYear, Ta
             汇率 = "G8"
             折合人名币 = "F7"
             copy_flag = "copy_template_sheet"
+            print(f'i = {i}')
             wb_target_excel_wb.active = int((i/2)+1)
+            # print(f'sheet_name = {wb_target_excel_wb.active}')
             # ws = wb_target_excel_wb.active
             # in the target_excel, copy the sheet "Template_请不要修改" to another new one, and name the sheet.
         if copy_flag == "copy_template_sheet":
@@ -76,7 +80,7 @@ def OutPutmaker(input_data_frame, outputfile_path, tempfile_path, TargetYear, Ta
             worksheet[支付金额] = '\u00A5' + str(input_data_frame.iloc[i, 1])
             wb_target_excel_wb.save(target_excel_path)
             wb_target_excel_wb.close()
-        return target_excel_path
+        # return target_excel_path
 
 
 def Data_Processor(data_frame, TargetYear, TargetMonth):
@@ -145,6 +149,7 @@ def main(argv):
     Original_data_frame = Data_Frame_Generator(
         Inputfile_path, Input_Sheet_Name)
     Modified_data_frame = Data_Processor(Original_data_frame, Year, Month)
+    # print(f'Modified data frame = {Modified_data_frame}')
     OutPutmaker(Modified_data_frame, Outputfile_path,
                 Tempfile_path, Year, Month, ExchangeRate)
 
