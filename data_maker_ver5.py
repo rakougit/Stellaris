@@ -11,7 +11,6 @@ import openpyxl
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
 import sys
 import shutil
-import num_to_hanzi_copied
 import warnings
 from decimal import Decimal
 
@@ -23,119 +22,65 @@ BC = "出纳账【总帐-中国银行】"
 Original_data_frame_Column_Names = ["报销单摘要", "支付金额", "附签"]
 Original_data_frame = pd.DataFrame(columns=Original_data_frame_Column_Names)
 
-def cncurrency(value, capital=True, prefix=False, classical=None):
-    '''
-    参数:
-    capital:    True   大写汉字金额
-                False  一般汉字金额
-    classical:  True   元
-                False  圆
-    prefix:     True   以'人民币'开头
-                False, 无开头
-    '''
-    if not isinstance(value, (Decimal, str, int)):
-        msg = '''
-        由于浮点数精度问题，请考虑使用字符串，或者 decimal.Decimal 类。
-        因使用浮点数造成误差而带来的可能风险和损失作者概不负责。
-        '''
-        warnings.warn(msg, UserWarning)
-    # 默认大写金额用圆，一般汉字金额用元
-    if classical is None:
-        classical = True if capital else False
 
-    # 汉字金额前缀
-    if prefix is True:
-        prefix = '人民币'
-    else:
-        prefix = ''
+def num2money_format(change_number):
+    """
+    .转换数字为大写货币格式( format_word.__len__() - 3 + 2位小数 )
+    change_number 支持 float, int, long, string
+    """
+    change_number = str(change_number)
+    format_word = ["元",
+                   "拾", "佰", "仟", "万",
+                   "拾", "佰", "仟", "亿",
+                   "拾", "佰", "仟", "万",
+                   "拾", "佰", "仟"]
 
-    # 汉字金额字符定义
-    dunit = ('角', '分')
-    if capital:
-        num = ('零', '壹', '贰', '叁', '肆', '伍', '陆', '柒', '捌', '玖')
-        iunit = [None, '拾', '佰', '仟', '万', '拾', '佰', '仟','亿', '拾', '佰', '仟', '万', '拾', '佰', '仟']
-    else:
-        num = ('〇', '一', '二', '三', '四', '五', '六', '七', '八', '九')
-        iunit = [None, '十', '百', '千', '万', '十', '百', '千','亿', '十', '百', '千', '万', '十', '百', '千']
-    if classical:
-        iunit[0] = '元' if classical else '圆'
-    # 转换为Decimal，并截断多余小数
+    format_word_decimal = ['分', '角']
 
-    if not isinstance(value, Decimal):
-        value = Decimal(value).quantize(Decimal('0.01'))
+    format_num = {'0': "零", '1': "壹", '2': "贰", '3': "叁",
+                  '4': "肆", '5': "伍", '6': "陆", '7': "柒", '8': "捌", '9': "玖"}
 
-    # 处理负数
-    if value < 0:
-        prefix += '负'          # 输出前缀，加负
-        value = - value         # 取正数部分，无须过多考虑正负数舍入
-                                # assert - value + value == 0
-    # 转化为字符串
-    s = str(value)
-    if len(s) > 19:
-        raise ValueError('金额太大了，不知道该怎么表达。')
-    istr, dstr = s.split('.')           # 小数部分和整数部分分别处理
-    istr = istr[::-1]                   # 翻转整数部分字符串
-    so = []     # 用于记录转换结果
+    res = []  # 存放转换结果
+    print(f"change_number={change_number}")
 
-    # 零
-    if value == 0:
-        return prefix + num[0] + iunit[0]
-    haszero = False     # 用于标记零的使用
-    if dstr == '00':
-        haszero = True  # 如果无小数部分，则标记加过零，避免出现“圆零整”
+    # if '.' not in change_number:
+    #     # 输入的数字没有'.'，为整元，没有角和分
+    k = len(change_number) - 1
+    for i in change_number:
+        res.append(format_num[i])
+        res.append(format_word[k])
+        k = k - 1
 
-    # 处理小数部分
-    # 分
-    if dstr[1] != '0':
-        so.append(dunit[1])
-        so.append(num[int(dstr[1])])
-    else:
-        so.append('整')         # 无分，则加“整”
-    # 角
-    if dstr[0] != '0':
-        so.append(dunit[0])
-        so.append(num[int(dstr[0])])
-    elif dstr[1] != '0':
-        so.append(num[0])       # 无角有分，添加“零”
-        haszero = True          # 标记加过零了
+    # elif '.' in change_number:
+    #     float_2_change_num = Decimal(
+    #         float(change_number)).quantize(Decimal("0.00"))
+    #     # 如果输入的字符串有“.”，则将其转换为浮点数后，四舍五入取两位小数
+    #     # print(float_2_change_num)
+    #     # print(type(float_2_change_num))
 
-    # 无整数部分
-    if istr == '0':
-        if haszero:             # 既然无整数部分，那么去掉角位置上的零
-            so.pop()
-        so.append(prefix)       # 加前缀
-        so.reverse()            # 翻转
-        return ''.join(so)
+    #     depart = str(float_2_change_num).split('.')
+    #     # 将四舍五入得到的浮点数整数部分和小数部分拆开，实现操作为：先将浮点数转为字符串类型，再以“.”为分隔符分开
+    #     # print(depart)
 
-    # 处理整数部分
-    for i, n in enumerate(istr):
-        n = int(n)
-        if i % 4 == 0:          # 在圆、万、亿等位上，即使是零，也必须有单位
-            if i == 8 and so[-1] == iunit[4]:   # 亿和万之间全部为零的情况
-                so.pop()                        # 去掉万
-            so.append(iunit[i])
-            if n == 0:                          # 处理这些位上为零的情况
-                if not haszero:                 # 如果以前没有加过零
-                    so.insert(-1, num[0])       # 则在单位后面加零
-                    haszero = True              # 标记加过零了
-            else:                               # 处理不为零的情况
-                so.append(num[n])
-                haszero = False                 # 重新开始标记加零的情况
-        else:                                   # 在其他位置上
-            if n != 0:                          # 不为零的情况
-                so.append(iunit[i])
-                so.append(num[n])
-                haszero = False                 # 重新开始标记加零的情况
-            else:                               # 处理为零的情况
-                if not haszero:                 # 如果以前没有加过零
-                    so.append(num[0])
-                    haszero = True
+    #     int_part = depart[0]  # 整数部分
+    #     # print(int_part)
 
-    # 最终结果
-    so.append(prefix)
-    so.reverse()
-    return ''.join(so)
+    #     decimal_part = depart[1]  # 小数部分
+    #     # print(decimal_part)
 
+    #     k = len(int_part) - 1
+    #     for i in int_part:  # 整数部分转换
+    #         res.append(format_num[i])
+    #         res.append(format_word[k])
+    #         k = k - 1
+
+    #     m = len(decimal_part) - 1
+    #     for i in decimal_part:  # 小数部分转换
+    #         res.append(format_num[i])
+    #         res.append(format_word_decimal[m])
+    #         m = m - 1
+
+    return ''.join(res)  # 返回结果
 
 
 def OutPutmaker(input_data_frame, outputfile_path, tempfile_path, TargetYear, TargetMonth, ExchangeRate):
@@ -182,23 +127,25 @@ def OutPutmaker(input_data_frame, outputfile_path, tempfile_path, TargetYear, Ta
             worksheet.title = sheet_name_in_wb_target_excel
             worksheet[报销单摘要].value = input_data_frame.iloc[i, 0]
             worksheet[支付金额].value = int(input_data_frame.iloc[i, 1])
+            temp_支付金额 = worksheet[支付金额].value
             worksheet[附签].value = input_data_frame.iloc[i, 2]
             worksheet[汇率].value = ExchangeRate
             worksheet[折合人名币].value = '\u00A5' + \
                 str(int(worksheet[支付金额].value * float(worksheet[汇率].value)))
             worksheet[支付金额] = '\u00A5' + str(input_data_frame.iloc[i, 1])
-            worksheet[数字转汉字] = cncurrency(worksheet[支付金额].value, capital=True, prefix=False, classical=None)
+            worksheet[数字转汉字] = num2money_format(temp_支付金额)
             wb_target_excel_wb.save(target_excel_path)
             wb_target_excel_wb.close()
         else:
             worksheet[报销单摘要] = input_data_frame.iloc[i, 0]
             worksheet[支付金额] = int(input_data_frame.iloc[i, 1])
+            temp_支付金额 = worksheet[支付金额].value
             worksheet[附签] = input_data_frame.iloc[i, 2]
             worksheet[汇率] = ExchangeRate
             worksheet[折合人名币] = '\u00A5' + \
                 str(int(worksheet[支付金额].value * float(worksheet[汇率].value)))
             worksheet[支付金额] = '\u00A5' + str(input_data_frame.iloc[i, 1])
-            worksheet[数字转汉字] = cncurrency(worksheet[支付金额].value, capital=True, prefix=False, classical=None)
+            worksheet[数字转汉字] = num2money_format(temp_支付金额)
             wb_target_excel_wb.save(target_excel_path)
             wb_target_excel_wb.close()
         # return target_excel_path
@@ -209,6 +156,7 @@ def Data_Processor(data_frame, TargetYear, TargetMonth):
     temp_data_frame = data_frame.dropna()
     mod_data_frame = pd.DataFrame()
     for i in range(len(temp_data_frame)):
+        # print(f"temp_data_frame = {temp_data_frame}")
         if TargetYear in temp_data_frame.iloc[i, 2]:
             # check if TargetMonth exist
             if TargetMonth == temp_data_frame.iloc[i, 2].split('-')[1]:
